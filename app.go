@@ -29,7 +29,25 @@ func main() {
 		log.Fatalf("Error parsing template: %v", err)
 	}
 
-	err = tmpl.Execute(os.Stdout, map[string]interface{}{
+	// Check if ENVOY_CONFIG_PATH is set
+	configPath := os.Getenv("ENVOY_CONFIG_PATH")
+	var output *os.File
+	if configPath != "" {
+		// Write to file if ENVOY_CONFIG_PATH is defined
+		output, err = os.Create(configPath)
+		if err != nil {
+			log.Fatalf("Error creating config file: %v", err)
+		}
+		defer output.Close()
+		log.Printf("Writing config to file: %s", configPath)
+	} else {
+		// Default to stdout
+		output = os.Stdout
+		log.Println("Writing config to stdout")
+	}
+
+	// Execute the template and write to the chosen output (file or stdout)
+	err = tmpl.Execute(output, map[string]interface{}{
 		"Hosts": hosts,
 	})
 	if err != nil {

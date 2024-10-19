@@ -48,23 +48,31 @@ static_resources:
               - '*'
               routes:
               {{range $i, $host := .Hosts}}
-              - name: "route_{{$i}}"
+              - name: {{$host.Host}}
                 match:
                   prefix: /
                   headers:
                     - name: "Host"
                       prefix_match: {{$host.Host}}
                 route:
-                  cluster: "cluster_{{$i}}"
-                  upgrade_configs:
-                  - upgrade_type: CONNECT
-                    connect_config: {}
+                  cluster: {{$host.Host}}_{{$host.Port}}
               {{end}}
               - name: catch-all
                 match:
                   connect_matcher: {}
                 route:
                   cluster: dynamic_forward_proxy_cluster
+                  upgrade_configs:
+                  - upgrade_type: CONNECT
+                    connect_config: {}
+              - match:
+                  prefix: /
+                route:
+                  cluster: dynamic_forward_proxy_cluster
+                typed_per_filter_config:
+                  envoy.filters.http.dynamic_forward_proxy:
+                    "@type": type.googleapis.com/envoy.extensions.filters.http.dynamic_forward_proxy.v3.PerRouteConfig
+                    host_rewrite_header: X-Host-Port
 
           http_filters:
           - name: envoy.filters.http.dynamic_forward_proxy
@@ -89,9 +97,10 @@ static_resources:
           name: dynamic_forward_proxy_cache_config
           dns_lookup_family: V4_ONLY
   {{range $i, $host := .Hosts}}
-  - name: "cluster_{{$i}}"
+  - name: "{{$host.Host}}_{{$host.Port}}"
     connect_timeout: 10s
     lb_policy: ROUND_ROBIN
+    type: STRICT_DNS
     transport_socket:
       name: envoy.transport_sockets.tls
       typed_config:
@@ -107,7 +116,7 @@ static_resources:
             trusted_ca:
               filename: "/etc/envoy/cacerts/ca.crt"
     load_assignment:
-      cluster_name: "cluster_{{$i}}"
+      cluster_name: "{{$host.Host}}_{{$host.Port}}"
       endpoints:
       - lb_endpoints:
         - endpoint:

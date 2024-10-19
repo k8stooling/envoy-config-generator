@@ -47,15 +47,15 @@ static_resources:
               domains:
               - '*'
               routes:
-              {{range .Hosts}}
-              - name: "{{.Host}}"
+              {{range $i, $host := .Hosts}}
+              - name: "route_{{$i}}"
                 match:
                   prefix: /
                   headers:
                     - name: "Host"
-                      prefix_match: {{.Host}}
+                      prefix_match: {{$host.Host}}
                 route:
-                  cluster: {{.Host}}
+                  cluster: "cluster_{{$i}}"
                   upgrade_configs:
                   - upgrade_type: CONNECT
                     connect_config: {}
@@ -88,15 +88,15 @@ static_resources:
         dns_cache_config:
           name: dynamic_forward_proxy_cache_config
           dns_lookup_family: V4_ONLY
-  {{range .Hosts}}
-  - name: {{.Host}}
+  {{range $i, $host := .Hosts}}
+  - name: "cluster_{{$i}}"
     connect_timeout: 10s
     lb_policy: ROUND_ROBIN
     transport_socket:
       name: envoy.transport_sockets.tls
       typed_config:
         "@type": type.googleapis.com/envoy.extensions.transport_sockets.tls.v3.UpstreamTlsContext
-        sni: {{.Host}}
+        sni: {{$host.Host}}
         common_tls_context:
           tls_certificates:
           - certificate_chain:
@@ -107,12 +107,12 @@ static_resources:
             trusted_ca:
               filename: "/etc/envoy/cacerts/ca.crt"
     load_assignment:
-      cluster_name: service_with_client_cert
+      cluster_name: "cluster_{{$i}}"
       endpoints:
       - lb_endpoints:
         - endpoint:
             address:
               socket_address:
-                address: {{.Host}}
-                port_value: {{.Port}}
+                address: {{$host.Host}}
+                port_value: {{$host.Port}}
   {{end}}
